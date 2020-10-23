@@ -81,10 +81,19 @@ class Environment(gym.Env):
            4. Return the above output
         '''
         # Create processes for each elevators' actions
-        for idx, action in enumerate(actions):
-            if action == -1:
-                continue
-            self.simul_env.process(self.elevators[idx].act(action))
+        #for idx, action in enumerate(actions):
+        #    if action == -1:
+        #        continue
+        #    self.simul_env.process(self.elevators[idx].act(action))
+        # FIXME: stable baseline inputs "actions" as a single number (not an array of actions)
+        if isinstance(actions, list):
+            for idx, action in enumerate(actions):
+                if action == -1:
+                    continue
+                self.simul_env.process(self.elevators[idx].act(action))
+        else:
+            if actions != -1:
+                self.simul_env.process(self.elevators[0].act(actions))
 
         while True: # run until a decision epoch is reached
             self.decision_elevators = []
