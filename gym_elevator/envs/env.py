@@ -7,48 +7,7 @@ from copy import deepcopy
 from collections import deque
 from .passenger import Passenger
 from .elevator import Elevator
-from .test_env import *
 from gym import spaces
-
-def make(num_elevators, curr_floors, total_floors, pas_gen_time, episode_time,
-    nA, total_timesteps, mode=None, human_mode=False, human_agent=None):
-    '''Generate new simpy.Environment.'''
-    assert curr_floors <= total_floors
-
-    simpy_env = simpy.Environment()
-    env = None
-    if human_mode:
-        if mode == "uppeak":
-            return HumanUpPeakEnvironment(simpy_env, num_elevators, 
-                curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
-        elif mode == "downpeak":
-            return HumanDownPeakEnvironment(simpy_env, num_elevators, 
-                curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
-        elif mode == "intermediate":
-            return HumanIntermediateEnvironment(simpy_env, num_elevators, 
-                curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
-        elif mode == "lunch": 
-            return HumanLunchEnvironment(simpy_env, num_elevators, 
-                curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
-
-    if not mode or "intermediate":
-        env = Environment(simpy_env, num_elevators, curr_floors, total_floors, 
-            pas_gen_time, nA, total_timesteps)
-    elif mode == "uppeak":
-        env = UpPeakEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time)
-    elif mode == "downpeak":
-        env = DownPeakEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time)
-    elif mode == "lunch":
-        env = LunchEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time, episode_time)
-    '''
-    elif mode == "schedule":
-        env = environment.TestEnvironment(simpy_env, num_elevators, 
-            curr_floors, total_floors, pas_gen_time, "schedule.txt")
-    '''
-    return env
 
 
 class Environment():
