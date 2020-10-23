@@ -4,13 +4,13 @@ import logging
 import numpy as np
 import copy
 from copy import deepcopy
+from gym import spaces
+import gym
 from collections import deque
 from .passenger import Passenger
 from .elevator import Elevator
-from gym import spaces
 
-
-class Environment():
+class Environment(gym.Env):
     def __init__(self, simul_env, num_elevators, curr_floors, total_floors,
         pas_gen_time, action_space, total_timesteps):
         self.simul_env = simul_env
