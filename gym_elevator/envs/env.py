@@ -7,7 +7,7 @@ from copy import deepcopy
 from collections import deque
 from .passenger import Passenger
 from .elevator import Elevator
-import environment
+from .test_env import *
 from gym import spaces
 
 def make(num_elevators, curr_floors, total_floors, pas_gen_time, episode_time,
@@ -19,33 +19,35 @@ def make(num_elevators, curr_floors, total_floors, pas_gen_time, episode_time,
     env = None
     if human_mode:
         if mode == "uppeak":
-            return environment.HumanUpPeakEnvironment(simpy_env, num_elevators, 
+            return HumanUpPeakEnvironment(simpy_env, num_elevators, 
                 curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
         elif mode == "downpeak":
-            return environment.HumanDownPeakEnvironment(simpy_env, num_elevators, 
+            return HumanDownPeakEnvironment(simpy_env, num_elevators, 
                 curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
         elif mode == "intermediate":
-            return environment.HumanIntermediateEnvironment(simpy_env, num_elevators, 
+            return HumanIntermediateEnvironment(simpy_env, num_elevators, 
                 curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
         elif mode == "lunch": 
-            return environment.HumanLunchEnvironment(simpy_env, num_elevators, 
+            return HumanLunchEnvironment(simpy_env, num_elevators, 
                 curr_floors, total_floors, pas_gen_time, human_agent, episode_time)
 
     if not mode or "intermediate":
         env = Environment(simpy_env, num_elevators, curr_floors, total_floors, 
             pas_gen_time, nA, total_timesteps)
+    elif mode == "uppeak":
+        env = UpPeakEnvironment(simpy_env, num_elevators,
+                            curr_floors, total_floors, pas_gen_time)
+    elif mode == "downpeak":
+        env = DownPeakEnvironment(simpy_env, num_elevators,
+                            curr_floors, total_floors, pas_gen_time)
+    elif mode == "lunch":
+        env = LunchEnvironment(simpy_env, num_elevators,
+                            curr_floors, total_floors, pas_gen_time, episode_time)
+    '''
     elif mode == "schedule":
         env = environment.TestEnvironment(simpy_env, num_elevators, 
             curr_floors, total_floors, pas_gen_time, "schedule.txt")
-    elif mode == "uppeak":
-        env = environment.UpPeakEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time)
-    elif mode == "downpeak":
-        env = environment.DownPeakEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time)
-    elif mode == "lunch":
-        env = environment.LunchEnvironment(simpy_env, num_elevators,
-                            curr_floors, total_floors, pas_gen_time, episode_time)
+    '''
     return env
 
 
