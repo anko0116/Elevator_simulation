@@ -18,7 +18,7 @@ class Elevator():
         self.curr_floor = 0
         self.passengers = set()
         self.requests = np.zeros(env.num_floors) # floor requests from Passengers inside the Elevator
-        self.weight_capacity = 907.185 # Unit: Kilograms, 1 ton == 907.185 kg
+        self.weight_capacity = 907 # Unit: Kilograms, 1 ton == 907.185 kg
         self.env = env
         self.id = id
         self.idling_event = None
@@ -88,7 +88,7 @@ class Elevator():
     def move_up(self):
         assert(self.curr_floor < self.env.num_floors - 1)
         self.state = self.MOVING_UP
-        self.env.moving_reward(self.id, self.state)
+        #self.env.moving_reward(self.id, self.state)
         yield self.env.simul_env.timeout(20)
         self.curr_floor += 1
         self.state = None
@@ -97,7 +97,7 @@ class Elevator():
     def move_down(self):
         assert(self.curr_floor > 0)
         self.state = self.MOVING_DOWN
-        self.env.moving_reward(self.id, self.state)
+        #self.env.moving_reward(self.id, self.state)
         yield self.env.simul_env.timeout(20)
         self.curr_floor -= 1
         self.state = None
@@ -105,8 +105,10 @@ class Elevator():
 
     def load(self):
         self.state = self.LOAD
+        self.env.unload_passengers(self.id)
         self.env.load_passengers(self.id)
-        self.env.moving_reward(self.id, self.state)
+        self.env.update_req_calls(self.id)
+        #self.env.moving_reward(self.id, self.state)
         yield self.env.simul_env.timeout(20)
         self.state = None
         self.env.trigger_epoch_event("ElevatorArrival_{}".format(self.id))

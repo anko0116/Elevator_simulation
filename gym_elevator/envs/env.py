@@ -206,8 +206,7 @@ class Environment(gym.Env):
         # Reset the event to be triggered again in the future
         self.epoch_events[event_type] = self.simul_env.event()
 
-    def load_passengers(self, e_id):
-        '''Use by Elevator when idle and ready to load/unload.'''
+    def unload_passengers(self, e_id):
         carrying = self.elevators[e_id].passengers
         curr_floor = self.elevators[e_id].curr_floor
 
@@ -222,18 +221,20 @@ class Environment(gym.Env):
             # Calculate time porportional reward
             delivery_time = self.now() - p.begin_wait_time
             rew = self.get_reward_prop_time(1e6, delivery_time)
-            scaled_rew = self.scale(0, 1e4, 100, 200, rew)
-            #print("env.py - unload scaled rew:", scaled_rew)
-            self.elevators[e_id].update_reward(scaled_rew)
+            #scaled_rew = self.scale(0, 1e4, 100, 200, rew)
+            #self.elevators[e_id].update_reward(scaled_rew)
+            self.elevators[e_id].update_reward(1)
             self.elevators[e_id].num_served += 1
 
             # Remove the passenger from the Elevator
             p.elevator = -1 # extra caution check
-            carrying.remove(p)      
+            carrying.remove(p)
+
+    def load_passengers(self, e_id):
+        carrying = self.elevators[e_id].passengers
+        curr_floor = self.elevators[e_id].curr_floor
 
         # Load passengers into the elevator
-        # FIXME: need to consider which passengers will be getting on the elevator
-        # while elevator is not full and there are passengers waiting on curr_floor
         while (len(self.elevators[e_id].passengers) + 1) * 62 < \
             self.elevators[e_id].weight_capacity and self.floors[curr_floor]:
             p = self.floors[curr_floor].popleft()
@@ -242,11 +243,15 @@ class Environment(gym.Env):
             p.elevator = e_id
             # update reward for pickking up new passenger
             pickup_time = self.now() - p.begin_wait_time
-            rew = self.get_reward_prop_time(3e5, pickup_time)
-            #print("env.py - load rew:", rew)
-            self.elevators[e_id].update_reward(rew)
+            #rew = self.get_reward_prop_time(3e5, pickup_time)
+            #self.elevators[e_id].update_reward(rew)
+            self.elevators[e_id].update_reward(1)
             self.elevators[e_id].requests[p.dest_floor] = 1
-        
+    
+    def update_req_calls(self, e_id):
+        '''Called by Elevator after load and unload functions.'''
+        curr_floor = self.elevators[e_id].curr_floor
+
         # Update request calls from Environment and Elevator
         # 1. Handle Environment's call requests
         self.call_requests[curr_floor] = [0, 0] # reset call request for this floor
