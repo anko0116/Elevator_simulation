@@ -220,7 +220,7 @@ class Environment(gym.Env):
         for p in unload_p:
             # Calculate time porportional reward
             delivery_time = self.now() - p.begin_wait_time
-            rew = self.get_reward_prop_time(1e6, delivery_time)
+            #rew = self.get_reward_prop_time(1e6, delivery_time)
             #scaled_rew = self.scale(0, 1e4, 100, 200, rew)
             #self.elevators[e_id].update_reward(scaled_rew)
             self.elevators[e_id].update_reward(1)
@@ -251,7 +251,6 @@ class Environment(gym.Env):
     def update_req_calls(self, e_id):
         '''Called by Elevator after load and unload functions.'''
         curr_floor = self.elevators[e_id].curr_floor
-
         # Update request calls from Environment and Elevator
         # 1. Handle Environment's call requests
         self.call_requests[curr_floor] = [0, 0] # reset call request for this floor
@@ -269,51 +268,60 @@ class Environment(gym.Env):
         else:
             self.elevators[e_id].requests[curr_floor] = 0
 
-    def moving_reward(self, e_id, move):
-        curr_floor = self.elevators[e_id].curr_floor
+    def move_rew_request(self, e_id, move):
+        # Reward for moving in the REQUEST direction
+        # for passengers inside the Elevator
+        # This function is called BEFORE the move happens
 
-        # Reward for moving in the CALL direction
-        reward_calls_above = 0
-        reward_calls_below = 0
+        curr_floor = self.elevators[e_id].curr_floor
+        total_req_rew = 0
+        # 
+        for p in self.elevators[e_id].passengers:
+            dist = abs(p.dest_floor - curr_floor)
+
+            # if elevator is moving past the destination
+            if dist == 0: 
+                dist = 1
+            req_reward = 20 / dist
+
+            # If moving up but the destination is below
+            if move == 1 and p.dest_floor <= curr_floor:
+                req_reward *= -1
+            # If moving down but the destination is above
+            elif move == -1 and p.dest_floor >= curr_floor:
+                req_reward *= -1
+
+            total_req_rew += req_reward
+        self.elevators[e_id].update_reward(total_req_rew)
+
+    def move_rew_call(self, e_id, move):
+        # Reward function for moving in the CALL direction
+        # for passengers waiting for the Elevator.
+        # This function is called BEFORE the move happens.
+
+        curr_floor = self.elevators[e_id].curr_floor
+        calls_above = 0
+        calls_below = 0
+        # Count the number of calls above and below
         for f in range(self.total_floors):
             if f < curr_floor:
-                reward_calls_below += len(self.floors[f])
+                calls_below += len(self.floors[f])
             else:
-                reward_calls_above += len(self.floors[f])
+                calls_above += len(self.floors[f])
+        # Give different rewards depending on the move
         if move == 0:
-            reward_calls_above = 0
-            reward_calls_below = 0
+            calls_above = 0
+            calls_below = 0
             #reward_calls_above = reward_calls_above * -1
             #reward_calls_below = reward_calls_below * -1
         elif move == 1:
-            reward_calls_below *= -1
+            calls_below *= -1
         elif move == -1:
-            reward_calls_above *= -1
+            calls_above *= -1
         self.elevators[e_id].update_reward(
-            reward_calls_above + reward_calls_below
+            calls_above + calls_below
         )
-        #print("env.py - call rew:", reward_calls_above + reward_calls_below)
         
-        # Reward for moving in the REQUEST direction
-        total_req_rew = 0
-        for p in self.elevators[e_id].passengers:
-            dist = abs(p.dest_floor - curr_floor)
-            if dist == 0 and move == 0: # if unload at the floor
-                #print("env.py 318")
-                self.elevators[e_id].update_lift_time(50)
-                continue
-            if dist == 0:
-                dist = 1
-            req_reward = 20 / dist
-            if move == 0:
-                req_reward = req_reward * -1
-            elif move == 1 and p.dest_floor < curr_floor:
-                req_reward = req_reward * -1
-            elif move == -1 and p.dest_floor > curr_floor:
-                req_reward = req_reward * -1
-            total_req_rew += req_reward
-        #print("env.py - req rew:", total_req_rew)
-        self.elevators[e_id].update_reward(total_req_rew)
         
     def get_elevator_state(self, e_id):
         '''Used in step function'''
