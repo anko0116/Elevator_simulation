@@ -33,7 +33,8 @@ class Environment(gym.Env):
         self.total_wait_passengers = 0
 
         self.simul_env = simpy.Environment()
-        self.floors = {} # Key: floor number, value: list of Passenger objects
+        self.floors_up = {} # Key: floor number, value: list of Passenger objects
+        self.floors_down = {}
         self.epoch_events = {} # key: event name, value: simpy event, this is what gets triggered to stop the simulation
         self.elevators = [] # List of Elevator objects
         self.call_requests = [] # List of call requests for each floor | Ex: self.call_requests[0][0] == 1 or 0
@@ -43,7 +44,8 @@ class Environment(gym.Env):
 
         # initialize each floor that holds Passenger objects
         for i in range(self.num_floors):
-                self.floors[i] = deque()
+                self.floors_up[i] = deque()
+                self.floors_down[i] = deque()
                 # first value is UP call, second value is DOWN call
                 # 0 = no call, 1 = call requested
                 self.call_requests.append([0, 0])
@@ -156,12 +158,13 @@ class Environment(gym.Env):
                 passengers.append(Passenger(curr_fl[i], dest_fl[i], self.simul_env.now))
             
             # Add Passenger to appropriate floor group
+            # and update the hall calls
             for p in passengers:
-                self.floors[p.curr_floor].append(p)
-                # Update the building calls 
                 if p.curr_floor > p.dest_floor: # DOWN call
+                    self.floors_down[p.curr_floor].append(p)
                     self.call_requests[p.curr_floor][1] = 1
                 else: # UP call
+                    self.floors_up[p.curr_floor].append(p)
                     self.call_requests[p.curr_floor][0] = 1
 
             self.generated_passengers += len(passengers)
@@ -219,7 +222,7 @@ class Environment(gym.Env):
             #rew = self.get_reward_prop_time(1e6, delivery_time)
             #scaled_rew = self.scale(0, 1e4, 100, 200, rew)
             #self.elevators[e_id].update_reward(scaled_rew)
-            self.elevators[e_id].update_reward(100)
+            self.elevators[e_id].update_reward(5)
             self.elevators[e_id].num_served += 1
 
             # Remove the passenger from the Elevator
@@ -229,11 +232,19 @@ class Environment(gym.Env):
     def load_passengers(self, e_id):
         carrying = self.elevators[e_id].passengers
         curr_floor = self.elevators[e_id].curr_floor
+        move_dir = self.elevators[e_id].direction
+        hall_passengers = None
         full = True
+
+        assert(move_dir == 1 or move_dir == -1)
+        if move_dir == 1:
+            hall_passengers = self.floors_up[curr_floor]
+        else:
+            hall_passengers = self.floors_down[curr_floor]
+
         # Load passengers into the elevator
-        while (len(self.elevators[e_id].passengers) + 1) * 62 < \
-            self.elevators[e_id].weight_capacity and self.floors[curr_floor]:
-            p = self.floors[curr_floor].popleft()
+        while not self.elevators[e_id].full() and hall_passengers:
+            p = hall_passengers.popleft()
             carrying.add(p)
             full = False
             # Update information about this passenger
@@ -243,11 +254,11 @@ class Environment(gym.Env):
             #pickup_time = self.now() - p.begin_wait_time
             #rew = self.get_reward_prop_time(3e5, pickup_time)
             #self.elevators[e_id].update_reward(rew)
-            self.elevators[e_id].update_reward(50)
+            self.elevators[e_id].update_reward(2)
             self.elevators[e_id].requests[p.dest_floor] = 1
         
-        if full:
-            self.elevators[e_id].update_reward(-100)
+        #if full:
+        #    self.elevators[e_id].update_reward(-100)
     
     def move_full_penalty(self, e_id):
         cap = self.elevators[e_id].weight_capacity
@@ -259,21 +270,17 @@ class Environment(gym.Env):
             Update requests from inside Elevator.
             Update calls from the Environment.
         '''
-        curr_floor = self.elevators[e_id].curr_floor
+        curr_fl = self.elevators[e_id].curr_floor
+        move_dir = self.elevators[e_id].direction
         # 1. Handle Environment's calls
-        self.call_requests[curr_floor] = [0, 0] # reset call request for this floor
-        for p in self.floors[curr_floor]:
-            # proning
-            if self.call_requests[curr_floor][0] == 1 and\
-                self.call_requests[curr_floor][1] == 1:
-                break
-            if p.dest_floor > curr_floor: # UP call
-                self.call_requests[curr_floor][0] = 1
-            elif p.dest_floor < curr_floor: # DOWN call
-                self.call_requests[curr_floor][1] = 1
+        self.call_requests[curr_fl] = [0, 0] # reset call request for this floor
+        if self.floors_up[curr_fl]:
+            self.call_requests[curr_fl][0] = 1
+        if self.floors_down[curr_fl]:
+            self.call_requests[curr_fl][1] = 1
 
         # 2. Handle Elevator's requests for this floor
-        self.elevators[e_id].requests[curr_floor] = 0
+        self.elevators[e_id].requests[curr_fl] = 0
 
     def move_rew_request(self, e_id, move):
         # Reward for moving in the REQUEST direction
@@ -329,7 +336,6 @@ class Environment(gym.Env):
             calls_above + calls_below
         )
         
-        
     def get_elevator_state(self, e_id):
         '''Used in step function'''
         e_state = []
@@ -381,7 +387,10 @@ class Environment(gym.Env):
 
     def get_elevator_wait_time(self):
         '''Calculate average wait time.'''
-        for _, floor in self.floors.items():
+        for _, floor in self.floors_down.items():
+            for p in floor: 
+                self.update_wait_time(p)
+        for _, floor in self.floors_up.items():
             for p in floor: 
                 self.update_wait_time(p)
         

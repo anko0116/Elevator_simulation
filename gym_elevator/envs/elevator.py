@@ -25,6 +25,7 @@ class Elevator():
         self.state = None
         self.reward = 0 # Per step reward
         self.num_served = 0
+        self.direction = 0
 
         self.total_lift_time = 0
         self.total_lift_passengers = 0
@@ -88,6 +89,7 @@ class Elevator():
     def move_up(self):
         assert(self.curr_floor < self.env.num_floors - 1)
         self.state = self.MOVING_UP
+        self.direction = self.MOVING_UP
         #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
         #self.env.move_full_penalty(self.id)
@@ -99,6 +101,7 @@ class Elevator():
     def move_down(self):
         assert(self.curr_floor > 0)
         self.state = self.MOVING_DOWN
+        self.direction = self.MOVING_DOWN
         #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
         #self.env.move_full_penalty(self.id)
@@ -157,3 +160,9 @@ class Elevator():
     def update_lift_time(self, p):
         self.total_lift_passengers += 1
         self.total_lift_time += (self.env.now() - p.begin_lift_time)
+    
+    def full(self):
+        # if another passenger can be taken
+        if (len(self.passengers) + 1) * 62 < self.weight_capacity:
+            return False
+        return True
