@@ -81,10 +81,7 @@ class Environment(gym.Env):
            4. Return the above output
         '''
         # Create processes for each elevators' actions
-        #for idx, action in enumerate(actions):
-        #    if action == -1:
-        #        continue
-        #    self.simul_env.process(self.elevators[idx].act(action))
+        # If input action is -1, then no action process is created
         # FIXME: stable baseline inputs "actions" as a single number (not an array of actions)
         if isinstance(actions, list):
             for idx, action in enumerate(actions):
@@ -109,7 +106,6 @@ class Environment(gym.Env):
                     self._process_passenger_request(event.value)
                 else:
                     print("env.py-step(): Unimplemented event type!")
-                    logging.debug("Unimplemented event type!")
             
             if decision_reached:
                 break
@@ -219,11 +215,11 @@ class Environment(gym.Env):
         # Unload Passengers from the elevator
         for p in unload_p:
             # Calculate time porportional reward
-            delivery_time = self.now() - p.begin_wait_time
+            #delivery_time = self.now() - p.begin_wait_time
             #rew = self.get_reward_prop_time(1e6, delivery_time)
             #scaled_rew = self.scale(0, 1e4, 100, 200, rew)
             #self.elevators[e_id].update_reward(scaled_rew)
-            self.elevators[e_id].update_reward(1)
+            self.elevators[e_id].update_reward(100)
             self.elevators[e_id].num_served += 1
 
             # Remove the passenger from the Elevator
@@ -233,28 +229,41 @@ class Environment(gym.Env):
     def load_passengers(self, e_id):
         carrying = self.elevators[e_id].passengers
         curr_floor = self.elevators[e_id].curr_floor
-
+        full = True
         # Load passengers into the elevator
         while (len(self.elevators[e_id].passengers) + 1) * 62 < \
             self.elevators[e_id].weight_capacity and self.floors[curr_floor]:
             p = self.floors[curr_floor].popleft()
             carrying.add(p)
+            full = False
+            # Update information about this passenger
             p.begin_lift_time = self.now() # Start lift time
             p.elevator = e_id
             # update reward for pickking up new passenger
-            pickup_time = self.now() - p.begin_wait_time
+            #pickup_time = self.now() - p.begin_wait_time
             #rew = self.get_reward_prop_time(3e5, pickup_time)
             #self.elevators[e_id].update_reward(rew)
-            self.elevators[e_id].update_reward(1)
+            self.elevators[e_id].update_reward(50)
             self.elevators[e_id].requests[p.dest_floor] = 1
+        
+        if full:
+            self.elevators[e_id].update_reward(-100)
     
+    def move_full_penalty(self, e_id):
+        cap = self.elevators[e_id].weight_capacity
+        if len(self.elevators[e_id].passengers) + 1 >= (cap / 62):
+            self.elevators[e_id].update_reward(-100)
+
     def update_req_calls(self, e_id):
-        '''Called by Elevator after load and unload functions.'''
+        '''Called by Elevator after load and unload functions.
+            Update requests from inside Elevator.
+            Update calls from the Environment.
+        '''
         curr_floor = self.elevators[e_id].curr_floor
-        # Update request calls from Environment and Elevator
-        # 1. Handle Environment's call requests
+        # 1. Handle Environment's calls
         self.call_requests[curr_floor] = [0, 0] # reset call request for this floor
         for p in self.floors[curr_floor]:
+            # proning
             if self.call_requests[curr_floor][0] == 1 and\
                 self.call_requests[curr_floor][1] == 1:
                 break
@@ -262,11 +271,9 @@ class Environment(gym.Env):
                 self.call_requests[curr_floor][0] = 1
             elif p.dest_floor < curr_floor: # DOWN call
                 self.call_requests[curr_floor][1] = 1
-        # 2. Handle Elevator's call requests for this floor
-        if self.floors[curr_floor]:
-            self.elevators[e_id].requests[curr_floor] = 1
-        else:
-            self.elevators[e_id].requests[curr_floor] = 0
+
+        # 2. Handle Elevator's requests for this floor
+        self.elevators[e_id].requests[curr_floor] = 0
 
     def move_rew_request(self, e_id, move):
         # Reward for moving in the REQUEST direction
