@@ -88,8 +88,9 @@ class Elevator():
     def move_up(self):
         assert(self.curr_floor < self.env.num_floors - 1)
         self.state = self.MOVING_UP
-        self.env.move_rew_request(self.id, self.state)
+        #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
+        #self.env.move_full_penalty(self.id)
         yield self.env.simul_env.timeout(20)
         self.curr_floor += 1
         self.state = None
@@ -98,8 +99,9 @@ class Elevator():
     def move_down(self):
         assert(self.curr_floor > 0)
         self.state = self.MOVING_DOWN
-        self.env.move_rew_request(self.id, self.state)
+        #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
+        #self.env.move_full_penalty(self.id)
         yield self.env.simul_env.timeout(20)
         self.curr_floor -= 1
         self.state = None
