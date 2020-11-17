@@ -115,10 +115,11 @@ class Environment(gym.Env):
 
         # Get return output
         output_rew = deepcopy(self.get_elevator_reward(0))
+        done = True if self.steps_taken + 1 > self.total_timesteps else False
         output = (
             np.array(self.get_elevator_state(0), dtype=bool),
             output_rew,
-            False,
+            done,
             {
                 "lift_time": self.get_elevator_lift_time(0),
                 "wait_time": self.get_elevator_wait_time(),
