@@ -25,7 +25,7 @@ class Elevator():
         self.state = None
         self.reward = 0 # Per step reward
         self.num_served = 0
-        self.direction = 0
+        self.direction = self.MOVING_UP
 
         self.total_lift_time = 0
         self.total_lift_passengers = 0
@@ -59,7 +59,7 @@ class Elevator():
             self.update_lift_time(p)
 
         # If action is LOAD
-        if action == self.LOAD:
+        if action == self.IDLE:
             self.idling_event = \
                 self.env.simul_env.process(self.ACTION_FUNCTION_MAP[action]())
             try:
@@ -71,7 +71,7 @@ class Elevator():
                 self.env.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
                 self.idling_event = None
 
-        # If action is not idle
+        # If action is not LOAD
         else:
             yield self.env.simul_env.process(self.ACTION_FUNCTION_MAP[action]())
 
@@ -81,6 +81,7 @@ class Elevator():
 
     # FIXME: Unused
     def idle(self):
+        assert(False)
         self.state = self.IDLE
         yield self.env.simul_env.timeout(7)
         self.state = None
@@ -93,7 +94,7 @@ class Elevator():
         #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
         #self.env.move_full_penalty(self.id)
-        yield self.env.simul_env.timeout(20)
+        yield self.env.simul_env.timeout(2)
         self.curr_floor += 1
         self.state = None
         self.env.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
@@ -105,7 +106,7 @@ class Elevator():
         #self.env.move_rew_request(self.id, self.state)
         #self.env.move_rew_call(self.id, self.state)
         #self.env.move_full_penalty(self.id)
-        yield self.env.simul_env.timeout(20)
+        yield self.env.simul_env.timeout(2)
         self.curr_floor -= 1
         self.state = None
         self.env.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
@@ -115,13 +116,13 @@ class Elevator():
         self.env.unload_passengers(self.id)
         self.env.load_passengers(self.id)
         self.env.update_req_calls(self.id)
-        yield self.env.simul_env.timeout(20)
+        yield self.env.simul_env.timeout(10)
         self.state = None
         self.env.trigger_epoch_event("ElevatorArrival_{}".format(self.id))
 
     def legal_actions(self):
         '''Return list of actions that are legal in the current Elevator state.
-            0 IDLE
+            0 LOAD
             1 MOVE UP
             2 MOVE DOWN
         '''
