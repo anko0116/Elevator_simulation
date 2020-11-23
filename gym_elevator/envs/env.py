@@ -12,16 +12,17 @@ from .elevator import Elevator
 
 class Environment(gym.Env):
     def __init__(self, simul_env, num_elevators, curr_floors, total_floors,
-        pas_gen_time, action_space, total_timesteps):
+        pas_gen_time, action_space, total_time):
         self.simul_env = simul_env
         self.num_elevators = num_elevators
         self.num_floors = curr_floors
         self.total_floors = total_floors
         self.pas_gen_time = pas_gen_time
-        self.total_timesteps = total_timesteps
+        self.total_time = total_time
         
-        self.action_space = spaces.Discrete(action_space)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(total_floors*4,), dtype=np.int8)
+        self.action_space = spaces.Discrete(action_space * 3)
+        self.observation_space = spaces.Box(low=0, high=1, 
+            shape=(2*total_floors + total_floors*2*self.num_elevators,), dtype=np.int8)
 
     def reset(self):
         '''Resets the environment to its initial state,
@@ -40,7 +41,6 @@ class Environment(gym.Env):
         self.call_requests = [] # List of call requests for each floor | Ex: self.call_requests[0][0] == 1 or 0
         self.decision_elevators = [] # Contains the indicies of elevators that need next action
         self.generated_passengers = 0
-        self.steps_taken = 0 # used for PPO2
 
         # initialize each floor that holds Passenger objects
         for i in range(self.num_floors):
@@ -66,7 +66,7 @@ class Environment(gym.Env):
         self.simul_env.process(self.generate_passengers())
 
         # reset returns the initial observation
-        obs, _, _, _ = self.step([-1 for _ in range(self.num_elevators)])
+        obs, _, _, _ = self.step(-1)
         return obs
 
     def step(self, actions):
@@ -84,15 +84,43 @@ class Environment(gym.Env):
         '''
         # Create processes for each elevators' actions
         # If input action is -1, then no action process is created
-        # FIXME: stable baseline inputs "actions" as a single number (not an array of actions)
+        # FIXME: stable baseline inputs "actions" as a single number (not a list)
         if isinstance(actions, list):
             for idx, action in enumerate(actions):
                 if action == -1:
                     continue
                 self.simul_env.process(self.elevators[idx].act(action))
+        elif actions != -1:
+            if actions == 0:
+                self.simul_env.process(self.elevators[0].act(0))
+                self.simul_env.process(self.elevators[1].act(0))
+            elif actions == 1:
+                self.simul_env.process(self.elevators[0].act(0))
+                self.simul_env.process(self.elevators[1].act(1))
+            elif actions == 2:
+                self.simul_env.process(self.elevators[0].act(0))
+                self.simul_env.process(self.elevators[1].act(2))
+            elif actions == 3:
+                self.simul_env.process(self.elevators[0].act(1))
+                self.simul_env.process(self.elevators[1].act(0))
+            elif actions == 4:
+                self.simul_env.process(self.elevators[0].act(1))
+                self.simul_env.process(self.elevators[1].act(1))
+            elif actions == 5:
+                self.simul_env.process(self.elevators[0].act(1))
+                self.simul_env.process(self.elevators[1].act(2))
+            elif actions == 6:
+                self.simul_env.process(self.elevators[0].act(2))
+                self.simul_env.process(self.elevators[1].act(0))
+            elif actions == 7:
+                self.simul_env.process(self.elevators[0].act(2))
+                self.simul_env.process(self.elevators[1].act(1))
+            elif actions == 8:
+                self.simul_env.process(self.elevators[0].act(2))
+                self.simul_env.process(self.elevators[1].act(2))
         else:
-            if actions != -1:
-                self.simul_env.process(self.elevators[0].act(actions))
+            for elevator in self.elevators:
+                self.simul_env.process(elevator.act(0))
 
         while True: # run until a decision epoch is reached
             self.decision_elevators = []
@@ -116,23 +144,26 @@ class Environment(gym.Env):
         self.decision_elevators = []
 
         # Get return output
-        output_rew = deepcopy(self.get_elevator_reward(0))
-        done = True if self.steps_taken + 1 > self.total_timesteps else False
+        output_rew = 0
+        num_served = 0    
+        for e_id in range(len(self.elevators)):
+            output_rew += self.get_elevator_reward(e_id)
+            num_served += self.elevators[e_id].num_served
+        done = True if self.now() > self.total_time else False
         output = (
-            np.array(self.get_elevator_state(0), dtype=bool),
+            np.array(self.get_elevator_state(), dtype=bool),
             output_rew,
             done,
             {
                 "lift_time": self.get_elevator_lift_time(0),
                 "wait_time": self.get_elevator_wait_time(),
-                "num_served": deepcopy(self.elevators[0].num_served),
+                "num_served": num_served,
                 "generated_passengers": deepcopy(self.generated_passengers),
             }
         )
 
-        self.steps_taken += 1
-        if self.total_timesteps < self.steps_taken:
-            self.steps_taken = 0
+        # Reset environment during learning
+        if done:
             self.reset()
 
         return output
@@ -337,7 +368,7 @@ class Environment(gym.Env):
             calls_above + calls_below
         )
         
-    def get_elevator_state(self, e_id):
+    def get_elevator_state(self):
         '''Used in step function'''
         e_state = []
         # Up calls from the building
@@ -349,15 +380,16 @@ class Environment(gym.Env):
             e_state.append(call[1])
 
         # Calls from within the Elevator
-        for request in self.elevators[e_id].requests:
-            e_state.append(request)
+        for elev in range(len(self.elevators)):
+            for request in self.elevators[elev].requests:
+                e_state.append(request)
 
-        # Location of the Elevator
-        for f_num in range(self.total_floors):
-            if self.elevators[e_id].curr_floor == f_num:
-                e_state.append(1)
-            else:
-                e_state.append(0)
+            # Location of the Elevator
+            for f_num in range(self.total_floors):
+                if self.elevators[elev].curr_floor == f_num:
+                    e_state.append(1)
+                else:
+                    e_state.append(0)
                 
         return e_state
 
